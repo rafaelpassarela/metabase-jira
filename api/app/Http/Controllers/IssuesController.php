@@ -200,18 +200,6 @@ class IssuesController extends Controller
         }
     }
 
-    function checkIssueReporter() {
-
-    }
-
-    function checkIssueRevisor() {
-
-    }
-
-    function checkIssueCorresp() {
-
-    }
-
     function jiraDateToDate($jiraDate) {
         // "2023-06-05T15:15:14.303-0300" -> "2023-06-05 15:15:14"
         if (isset($jiraDate)) {
