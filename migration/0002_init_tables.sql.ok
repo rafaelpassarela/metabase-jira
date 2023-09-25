@@ -1,0 +1,15 @@
+CREATE TABLE `projects` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `keyId` varchar(10) NOT NULL,
+  `url` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unq_projects_keyid` (`keyId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS issues (
+    id int not null
+);
+
+CREATE TABLE IF NOT EXISTS personas (
+    id int not null
+);

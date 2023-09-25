@@ -1,0 +1,69 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Metabase for Jira API",
+        "description": "Endpoint mapping for Metabase for Jira App.",
+        "contact": {
+            "email": "contact@mrrafael.ca"
+        },
+        "version": "2.0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:3030",
+            "description": "Server"
+        }
+    ],
+    "paths": {
+        "/api/v1/test": {
+            "get": {
+                "tags": [
+                    "Test"
+                ],
+                "description": "Returns a simple Ok message for API Connectivity test.",
+                "responses": {
+                    "200": {
+                        "description": "API Communication Ok, You're ready to go",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "code": {
+                                            "description": "Result Code",
+                                            "type": "number"
+                                        },
+                                        "message": {
+                                            "description": "Result message",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Não encontrado"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "security": [
+        {
+            "bearerAuth": []
+        }
+    ],
+    "externalDocs": {
+        "description": "Metabase for Jira API - External Documentation",
+        "url": "http://localhost/todo"
+    }
+}
