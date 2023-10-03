@@ -105,6 +105,7 @@ class IssuesController extends Controller
         }
 
         // update issues Story Points from Parent
+        $this->message("\nChecking Parent Story Points...");
         $this->updateStoryPointsFromParent();
 
         $total = sizeof($this->cachedIssues);
@@ -255,7 +256,6 @@ revisor = fields->customfield_10131->displayName (id tb persona)
         $issue->keyJira = $json->key;
         $issue->summary = $json->fields->summary;
         $issue->issueType = $json->fields->issuetype->name;
-        $issue->storyPoints = (property_exists($json->fields, 'customfield_10026') ? $json->fields->customfield_10026 : 0);
         $issue->classe = (isset($json->fields->customfield_10144) ? $json->fields->customfield_10144->value : null);
         $issue->tema = (isset($json->fields->customfield_10145) ? $json->fields->customfield_10145->value : null);
         $issue->subTema = (isset($json->fields->customfield_10146) ? $json->fields->customfield_10146->value : null);
@@ -265,6 +265,11 @@ revisor = fields->customfield_10131->displayName (id tb persona)
         $issue->url = $this->getIssueURL($json->key);
         $issue->lastUpdated = $this->jiraDateToDate($json->fields->updated);
         $issue->filterId = $filterId;
+
+        $issue->storyPoints = (property_exists($json->fields, 'customfield_10026') ? $json->fields->customfield_10026 : 0);
+        if ($issue->storyPoints == NULL) {
+            $issue->storyPoints = 0;
+        }
 
         if (isset($json->fields->customfield_10020)) {
             $idx = sizeof($json->fields->customfield_10020) - 1;
@@ -295,12 +300,15 @@ revisor = fields->customfield_10131->displayName (id tb persona)
 
     function updateStoryPointsFromParent() {
         foreach ($this->parentIssues as $key => $keyId) {
+            $this->message(" - $keyId");
             $parent = Issues::where('keyJira', '=', $keyId)->first();
 
             if (isset($parent) && ($parent->id > 0)) {
-                Issues::where('parentKey', '=', $keyId)->update(
+                $affected = Issues::where('parentKey', '=', $keyId)->update(
                     array('storyPoints' => $parent->storyPoints)
                 );
+
+                $this->message(" -- $affected");
             }
         }
     }
