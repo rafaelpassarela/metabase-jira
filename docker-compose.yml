@@ -6,75 +6,6 @@ version: '3.8'
 # swagger  running at localhost:3030/api/v1/documentation
 
 services:
-  metabase_jira:
-    image: metabase/metabase:latest
-    container_name: metabase_jira
-    volumes:
-      - /dev/urandom:/dev/random:ro
-      - /etc/timezone:/etc/timezone
-      - /etc/localtime:/etc/localtime
-    networks:
-      - metabase
-    ports:
-      - "80:3000"
-      - "3000:3000"
-    env_file:
-      - .env
-    secrets:
-      - db_password
-      - db_user
-    healthcheck:
-      test: curl --fail -I http://localhost:3000/api/health || exit 1
-      interval: 15s
-      timeout: 5s
-      retries: 5
-    depends_on:
-      - mysql
-    links:
-      - mysql
-
-  mysql:
-    image: mysql:8.0
-    container_name: metabase_mysql
-    command: --default-authentication-plugin=mysql_native_password
-    restart: always
-    ports:
-      - "3306:3306"
-    networks:
-      - metabase
-    env_file:
-      - .env
-    environment:
-      - VIRTUAL_HOST=mysql.metabase.com
-    volumes:
-      - ./db-script:/docker-entrypoint-initdb.d
-      - ./migration:/migration
-      - ./mysql-data:/var/lib/mysql
-      - /etc/timezone:/etc/timezone
-      - /etc/localtime:/etc/localtime
-    healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
-      timeout: 20s
-      interval: 10s
-      retries: 10
-
-  mysqlinit:
-    image: mysql:8.0
-    container_name: metabase_init
-    networks:
-      - metabase
-    env_file:
-      - .env
-    volumes:
-      - ./migration:/migration
-      - /etc/timezone:/etc/timezone
-      - /etc/localtime:/etc/localtime
-    command: bash -c "sleep 5 && cd /migration && chmod +x init-db.sh && ./init-db.sh"
-    depends_on:
-      - mysql
-    links:
-      - mysql
-
   php:
     image: metabase_php
     build:
@@ -97,10 +28,10 @@ services:
       - /etc/timezone:/etc/timezone
       - /etc/localtime:/etc/localtime
     working_dir: /www
-    depends_on:
-      - mysql
-    links:
-      - mysql
+    # depends_on:
+    #   - mysql
+    # links:
+    #   - mysql
 
   api:
     image: nginx:latest
@@ -127,22 +58,6 @@ services:
       - php
     extra_hosts:
       - "localhost:172.20.0.6"
-
-  phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: metabase_pma
-    restart: always
-    ports:
-      - '127.0.0.1:8080:80'
-    networks:
-      - metabase
-    environment:
-      - PMA_ARBITRARY=1
-    volumes:
-      - /etc/timezone:/etc/timezone
-      - /etc/localtime:/etc/localtime
-    links:
-      - mysql
 
 volumes:
   mysql_data:
