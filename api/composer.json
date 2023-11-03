@@ -61,6 +61,10 @@
         ],
         "autoload": [
             "composer dump-autoload"
+        ],
+        "cron": [
+            "@php artisan schedule:list",
+            "service cron status"
         ]
     },
     "extra": {

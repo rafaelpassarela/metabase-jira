@@ -3,15 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PersonaTypeEnum;
+use App\Helpers\Rocket;
 use App\Models\Config;
 use App\Models\Filters;
 use App\Models\Issues;
 use App\Models\IssuesPersonas;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use LDAP\Result;
 
-use function PHPUnit\Framework\isNull;
+use function PHPUnit\Framework\isEmpty;
 
 class IssuesController extends Controller
 {
@@ -22,14 +21,19 @@ class IssuesController extends Controller
     private $baseURL;
     private $parentIssues;
     private $cachedIssues;
+    private $logMessage;
+    private $rocket;
 
-    public function __construct(PersonasController $personasController, ProjectsController $projectsController) {
+    public function __construct(PersonasController $personasController, ProjectsController $projectsController, Rocket $rocket) {
         $this->baseURL = env('JIRA_URL');
         $this->console = false;
         $this->date = -1;
+        $this->logMessage = '';
 
         $this->personasController = $personasController;
         $this->projectsController = $projectsController;
+
+        $this->rocket = $rocket;
 
         $this->initCache();
     }
@@ -51,6 +55,8 @@ class IssuesController extends Controller
         if ($this->console) {
             echo "$value \n";
         }
+
+        $this->logMessage = $this->logMessage . "$value\n";
     }
 
     function requestIssue(string $filter) {
@@ -80,40 +86,44 @@ class IssuesController extends Controller
         }
     }
 
-    function encodeFilter(string $filter) {
+    function encodeFilter(string $filter, string $doneFilter) {
         // updated >= '2023-09-13 00:00' AND updated <= '2023-09-13 23:59' and resolution != null and issueType != Epic order by Key
-        $date = "updated >= '$this->date 00:00' AND updated <= '$this->date 23:59' and resolution != null and issueType != Epic order by Key";
-        if (!empty($filter)) {
-            $date = " AND $date";
-        }
-        $res = $filter . $date;
+        $date = "updated >= '$this->date 00:00' AND updated <= '$this->date 23:59' and issueType != Epic order by Key";
+
+        $res = "$filter AND ($doneFilter) AND $date";
 
         return $res;
     }
 
     public function ImportIssues() {
+        $total = 0;
+        $this->logMessage = '';
         $this->message('Starting... [' . $this->date . ']');
 
-        // $filters = Filters::all();
-        $filters = Filters::where('active', '=', 1)->get();
-        foreach ($filters as $key => $filter) {
-            $this->message("Checking $filter->description...");
-            $json = $this->requestIssue( $this->encodeFilter($filter->filter) );
-            if (isset($json)) {
-                $this->processIssueList($json, $filter->id);
+        try {
+            $filters = Filters::where('active', '=', 1)->get();
+            foreach ($filters as $key => $filter) {
+                $this->message("Checking $filter->description...");
+                $json = $this->requestIssue( $this->encodeFilter($filter->filter, $filter->done_filter) );
+                if (isset($json)) {
+                    $this->processIssueList($json, $filter->id, 1);
+                }
             }
+
+            // update issues Story Points from Parent
+            $this->message("\nChecking Parent Story Points...");
+            $this->updateStoryPointsFromParent();
+
+            $total = sizeof($this->cachedIssues);
+            $this->message("\nDone. $total Issues Verified");
+
+            $this->updateImportDateTime();
+        } catch (\Throwable $th) {
+            $this->message($th->getMessage());
+            $this->message($th->getTraceAsString());
         }
 
-        // update issues Story Points from Parent
-        $this->message("\nChecking Parent Story Points...");
-        $this->updateStoryPointsFromParent();
-
-        $total = sizeof($this->cachedIssues);
-        $this->message("Done. $total Issues Verified");
-
-        $config = Config::find(1);
-        $config->value = $this->date;
-        $config->save();
+        $this->sendNotification();
 
         return response()->json([
             'code' => 200,
@@ -122,12 +132,16 @@ class IssuesController extends Controller
         ]);
     }
 
-    function processIssueList($jsonList, int $filterId) {
+    function getIdentByLevel(int $level) {
+        return ' ' . str_repeat('- ', $level);
+    }
+
+    function processIssueList($jsonList, int $filterId, int $level) {
         $issues = $jsonList["issues"];
         foreach ($issues as $key => $issue) {
             $key = $issue["key"];
             $fields = $issue["fields"];
-            $this->message(' - ' . $key);
+            $this->message($this->getIdentByLevel($level) . $key);
             if (!array_key_exists($key, $this->cachedIssues)) {
                 // check project
                 $projectId = $this->projectsController->getProjectId($fields["project"]);
@@ -147,10 +161,10 @@ class IssuesController extends Controller
                     $parent = $jsonIssue->fields->parent->key;
                     $parentType = $jsonIssue->fields->parent->fields->issuetype->name;
                     if ($parentType != 'Epic') {
-                        $this->message(" -- Checking Parent Issue $parent ($parentType)");
+                        $this->message($this->getIdentByLevel($level + 1) . "Checking Parent Issue $parent ($parentType)");
                         $json = $this->requestIssue( "Key = $parent" );
                         if (isset($json)) {
-                            $this->processIssueList($json, $filterId);
+                            $this->processIssueList($json, $filterId, $level + 1);
                         }
                     }
                 }
@@ -159,22 +173,21 @@ class IssuesController extends Controller
                 if (sizeof($jsonIssue->fields->subtasks) > 0) {
                     $parent = $jsonIssue->key;
                     $parentType = $jsonIssue->fields->issuetype->name;
-                    $this->message(" -- Checking SubTasks for $parent ($parentType)");
+                    $this->message($this->getIdentByLevel($level + 1) . "Checking SubTasks for $parent ($parentType)");
                     $json = $this->requestIssue( "Parent = $parent" );
                     if (isset($json)) {
-                        $this->processIssueList($json, $filterId);
+                        $this->processIssueList($json, $filterId, $level + 1);
                     }
                 }
 
                 $this->cachedIssues[$key] = $issueId;
             } else {
-                $this->message(' * Cache ' . $key);
+                $this->message($this->getIdentByLevel($level) . '* Cache ' . $key);
             }
         }
     }
 
     function checkIssuePersona(int $issueId, $arr, PersonaTypeEnum $type) {
-
         if ($arr == NULL) {
             return null;
         }
@@ -286,6 +299,10 @@ revisor = fields->customfield_10131->displayName (id tb persona)
             }
         }
 
+        if ($issue->issueType <> 'Subtarefa') {
+            $issue->resolution = 'Done';
+        }
+
         if (property_exists($json->fields, 'resolution') && isset($json->fields->resolution)) {
             $issue->resolution = $json->fields->resolution->name;
             $issue->resolvedAt = $this->jiraDateToDate($json->fields->resolutiondate);
@@ -308,9 +325,26 @@ revisor = fields->customfield_10131->displayName (id tb persona)
                     array('storyPoints' => $parent->storyPoints)
                 );
 
-                $this->message(" -- $affected");
+                $this->message(" -- QTD: $affected");
             }
         }
+    }
+
+    function sendNotification() {
+        if ($this->rocket->isConfigurated()) {
+            $status = $this->rocket->sendMessage($this->logMessage);
+            $this->message($status["message"]);
+        }
+    }
+
+    function updateImportDateTime() {
+        $config = Config::find(1);
+        $config->value = $this->date;
+        $config->save();
+
+        $config = Config::find(2);
+        $config->value = date('H:i:s', time());
+        $config->save();
     }
 
 }

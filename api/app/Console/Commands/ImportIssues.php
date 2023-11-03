@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Http\Controllers\IssuesController;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 
 class ImportIssues extends Command
@@ -28,12 +29,12 @@ class ImportIssues extends Command
     {
         $date = $this->option('date');
         $valid = strtotime($date);
-        if ($valid) {
-            $controller->setDate($date);
-            $controller->setConsole(true);
-            $controller->ImportIssues();
-        } else {
-            echo "Invalid date param [$date]. \n";
+        if (!$valid) {
+            $date = Carbon::yesterday()->format('Y-m-d');
         }
+
+        $controller->setDate($date);
+        $controller->setConsole(true);
+        $controller->ImportIssues();
     }
 }

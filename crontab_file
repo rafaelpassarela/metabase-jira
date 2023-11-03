@@ -1,1 +1,9 @@
-* * * * * root echo "Hello world" >> /var/log/cron.log 2>&1
+# Register Laravel Scheduler
+* * * * * cd /www && /usr/local/bin/php artisan schedule:run >> /var/log/cron.log 2>&1
+
+# Clear log file every day at 00:01
+# 1 0 * * * truncate -s 0 /www/storage/logs/cron.log && truncate -s 0 /www/storage/logs/laravel.log
+
+# Test - Clear log file every 5 min
+*/5 * * * * truncate -s 0 /www/storage/logs/cron.log && truncate -s 0 /www/storage/logs/laravel.log
+

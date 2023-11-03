@@ -17,6 +17,7 @@ class Filters extends Model
     protected $fillable = [
         'description',
         'filter',
+        'done_filter',
         'active'
     ];
 }

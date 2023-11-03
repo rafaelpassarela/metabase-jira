@@ -31,6 +31,7 @@ class FiltersFactory extends Factory
         return [
             'description' => fake()->company(),
             'filter' => $filter,
+            'done_filter' => 'done = true',
             'active' => 1
         ];
     }

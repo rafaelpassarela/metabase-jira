@@ -1,0 +1,62 @@
+image: docker:19.03.12
+
+stages:
+  - build
+  - deploy
+
+variables:
+  IMAGE_NAME: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+
+.login_registry: &login_registry
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY
+
+.ssh_key: &ssh_key
+  before_script:
+    - which rsync || ( apk update && apk add rsync )
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+
+build:
+    stage: build
+    <<: *login_registry
+    script:
+      - |
+        docker build \
+        --pull \
+        --tag $IMAGE_NAME \
+        .
+      - docker push $IMAGE_NAME
+      - docker tag $IMAGE_NAME $CI_REGISTRY_IMAGE:latest
+      - docker push $CI_REGISTRY_IMAGE:latest
+    allow_failure: false
+    only:
+      - merge_requests
+      - master
+      - develop
+
+deploy_production:
+  stage: deploy
+  <<: *ssh_key
+  script:
+    - echo $IMAGE_NAME
+    - echo $CI_REGISTRY_USER
+    - echo $CI_JOB_TOKEN
+    - echo $CI_REGISTRY
+    - |
+      ssh $USER_DEPLOY@$SERVER_DEPLOY -tt "\
+        docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY; \
+        cd $PATH_DEPLOY; \
+        git pull; \
+        docker stop metabase_php_fpm; \
+        docker rm metabase_php_fpm; \
+        docker rmi $CI_REGISTRY_IMAGE:latest; \
+        docker pull $IMAGE_NAME; \
+        docker compose up -d php; \
+      "
+  allow_failure: false
+  only:
+    - master

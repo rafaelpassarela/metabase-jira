@@ -1,4 +1,5 @@
 /vendor/
+_vendor/
 node_modules/
 npm-debug.log
 yarn-error.log
@@ -21,6 +22,7 @@ storage/*.key
 Homestead.yaml
 Homestead.json
 /.vagrant
+/.git_old
 .phpunit.result.cache
 /mysql-data
 

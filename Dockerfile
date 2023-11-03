@@ -4,6 +4,7 @@ RUN apt update && docker-php-ext-install pdo_mysql
 
 RUN apt install -y git && apt install -y zip
 
+## composer install
 RUN curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php
 RUN php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
 
@@ -11,22 +12,14 @@ COPY ./api/docker-entrypoint.sh /
 
 RUN chmod +x /docker-entrypoint.sh
 
-# Install Crontab
 RUN apt-get update
-RUN apt update && apt-get install -y cron && apt install -y vim
+RUN apt update && apt install -y vim
 
-# Add crontab file in the cron directory
-#ADD crontab /etc/cron.d/crontab_file
-COPY ./crontab_file /etc/cron.d/crontab_file
+# Updating the packages and installing cron and vim editor
+RUN apt-get install cron -y
 
-# Give execution rights on the cron job
-RUN chmod 0644 /etc/cron.d/crontab_file
-
-# Apply cron job
-RUN crontab /etc/cron.d/crontab_file
-
-# Create the log file to be able to run tail
-RUN touch /var/log/cron.log
+# Crontab file copied to cron.d directory.
+COPY ./crontab_file /etc/cron.d/container_cronjob
 
 WORKDIR /www
 
@@ -40,9 +33,9 @@ EXPOSE 80
 ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.10.0/wait /wait
 RUN chmod +x /wait
 
+# set timezone
+RUN rm /etc/localtime
+RUN ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
+RUN dpkg-reconfigure -f noninteractive tzdata
+
 RUN /docker-entrypoint.sh
-
-# Run the command on container startup
-CMD cron && tail -f /var/log/cron.log
-
-# rodar da pasta raiz -> docker build -t metabase_php -f Dockerfile_php .

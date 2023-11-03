@@ -12,7 +12,11 @@ php artisan make:migration create_flights_table
 php artisan import-issues --date 2023-10-13
 php artisan auto-import --date 2023-10-12
 
+php artisan schedule:list
+
 
 Dev Mode
 docker-compose -f docker-compose-dev.yml up
 docker-compose -f docker-compose-dev.yml down
+
+docker build -t metabase_php -f Dockerfile .
